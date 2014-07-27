@@ -14,7 +14,7 @@ import (
 var (
 	_ fs.FS   = fs.FS(filesystem{})
 	_ fs.Node = fs.Node(directory{})
-	_ fs.Node = fs.Node(file{})
+	_ fs.Node = fs.Node(&file{})
 )
 
 var (

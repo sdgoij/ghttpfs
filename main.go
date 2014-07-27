@@ -33,7 +33,6 @@ func main() {
 		log.Fatalln(err)
 	}
 	defer func() {
-		log.Println("Shutdown, unmount", flag.Arg(0))
 		fuse.Unmount(flag.Arg(0))
 		conn.Close()
 	}()

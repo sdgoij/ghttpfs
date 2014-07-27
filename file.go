@@ -1,8 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -13,15 +13,15 @@ import (
 
 type file struct {
 	node
-	size uint64
+	size uint64 // total filesize
+	buf  []byte // buffer of pre-feched data
+	pos  uint64 // start position of buf
 }
 
-func NewFile(parent *directory, fs *filesystem, name string) (node file, err error) {
-	node.parent = parent
-	node.name = name
-	node.fs = fs
+func NewFile(parent *directory, fs *filesystem, name string) (f *file, err error) {
+	f = &file{node{parent, fs, name}, 0, nil, 0}
 
-	if r, e := fs.client.Do(fs.NewRequest("HEAD", node.fullpath())); e == nil {
+	if r, e := fs.client.Do(fs.NewRequest("HEAD", f.fullpath())); e == nil {
 		defer r.Body.Close()
 		if r.StatusCode != http.StatusOK {
 			switch r.StatusCode {
@@ -33,14 +33,14 @@ func NewFile(parent *directory, fs *filesystem, name string) (node file, err err
 			return
 		}
 		if s, e := strconv.ParseUint(r.Header.Get("Content-Length"), 10, 64); e == nil {
-			node.size = s
+			f.size = s
 		}
 	}
 
 	return
 }
 
-func (f file) Attr() fuse.Attr {
+func (f *file) Attr() fuse.Attr {
 	return fuse.Attr{
 		Size:  f.size,
 		Mode:  0400,
@@ -50,31 +50,49 @@ func (f file) Attr() fuse.Attr {
 	}
 }
 
-func (f file) Read(req *fuse.ReadRequest, resp *fuse.ReadResponse, _ fs.Intr) fuse.Error {
+func (f *file) Read(req *fuse.ReadRequest, resp *fuse.ReadResponse, _ fs.Intr) fuse.Error {
 	if !req.Dir {
-		start, end := req.Offset, req.Offset+int64(req.Size)-1
-		log.Printf("file.Read(file=%s, start=%d, end=%d)", f.fullpath(), start, end)
+		offset, size, bpos := int64(req.Offset), int64(req.Size), int64(0)
+		if bpos = f.offsetToBufferPos(offset, size); bpos < 0 {
+			end := offset + size*10 - 1 // pre-fetch 10x the requested data, 4kB -> 40kB
+			log.Printf("file.Read(file=%s): Pre-Fetch start=%d, end=%d, size=%d)",
+				f.fullpath(), offset, end, size*10)
 
-		req := f.fs.NewRequest("GET", f.fullpath())
-		req.Header.Add("Range", fmt.Sprintf("bytes=%d-%d", start, end))
+			req := f.fs.NewRequest("GET", f.fullpath())
+			req.Header.Add("Range", fmt.Sprintf("bytes=%d-%d", offset, end))
 
-		r, err := f.fs.client.Do(req)
-		if err != nil {
-			log.Println(err)
-			return fuse.EIO
+			r, err := f.fs.client.Do(req)
+			if err != nil {
+				log.Println(err)
+				return fuse.EIO
+			}
+			defer r.Body.Close()
+
+			if r.StatusCode != http.StatusOK && r.StatusCode != http.StatusPartialContent {
+				log.Println(f.fullpath(), r.Status)
+				return fuse.EIO
+			}
+
+			if f.buf, err = ioutil.ReadAll(r.Body); err != nil {
+				return fuse.EIO
+			}
+
+			f.pos = uint64(offset)
+			bpos = 0
 		}
-		defer r.Body.Close()
 
-		if r.StatusCode != http.StatusOK && r.StatusCode != http.StatusPartialContent {
-			log.Println(f.fullpath(), r.Status)
-			return fuse.EIO
-		}
+		log.Printf("file.Read(%s): Reading start=%d/%d end=%d",
+			f.fullpath(), offset, bpos, offset+size)
 
-		buf := &bytes.Buffer{}
-		buf.ReadFrom(r.Body)
-		resp.Data = buf.Bytes()
-
+		resp.Data = f.buf[bpos : bpos+size]
 		return nil
 	}
 	return fuse.EIO
+}
+
+func (f *file) offsetToBufferPos(offset, size int64) int64 {
+	if pos := offset - int64(f.pos); pos >= 0 && pos+size <= int64(len(f.buf)) {
+		return pos
+	}
+	return -1
 }
