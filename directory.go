@@ -104,19 +104,29 @@ func (d directory) ReadDir(_ fs.Intr) (de []fuse.Dirent, err fuse.Error) {
 	return
 }
 
+var ignoreNames = map[string]struct{}{
+	"Backups.backupdb": struct{}{},
+	"mach_kernel":      struct{}{},
+	".DS_Store":        struct{}{},
+	".hidden":          struct{}{},
+	"._.":              struct{}{},
+}
+
 func (d directory) Lookup(name string, _ fs.Intr) (fs.Node, fuse.Error) {
-	log.Printf("directory.Lookup(name=%s, path=%s)", name, d.fullpath())
-	if err := d.populate(); err != nil {
-		return nil, fuse.ENOENT
-	}
-	if de, ok := d.de[name]; ok {
-		switch de.Type {
-		case fuse.DT_Dir:
-			return NewDirectory(&d, d.fs, name), nil
-		case fuse.DT_File:
-			return NewFile(&d, d.fs, name)
-		default:
-			panic("should not happen.")
+	if _, ignore := ignoreNames[name]; !ignore && !strings.HasPrefix(name, "._") {
+		log.Printf("directory.Lookup(name=%s, path=%s)", name, d.fullpath())
+		if err := d.populate(); err != nil {
+			return nil, fuse.ENOENT
+		}
+		if de, ok := d.de[name]; ok {
+			switch de.Type {
+			case fuse.DT_Dir:
+				return NewDirectory(&d, d.fs, name), nil
+			case fuse.DT_File:
+				return NewFile(&d, d.fs, name)
+			default:
+				panic("should not happen.")
+			}
 		}
 	}
 	return nil, fuse.ENOENT
