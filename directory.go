@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -71,7 +72,11 @@ func (d *directory) populate() (err fuse.Error) {
 						if strings.HasSuffix(a.Val, "/") {
 							direntType = fuse.DT_Dir
 						}
-						name := strings.TrimRight(a.Val, "/")
+						name, err := url.QueryUnescape(a.Val)
+						if err != nil {
+							log.Printf("url.QueryUnescape(%s): %s", a.Val, err)
+						}
+						name = strings.TrimRight(name, "/")
 						d.de[name] = fuse.Dirent{
 							Name: name,
 							Type: direntType,

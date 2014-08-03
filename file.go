@@ -55,8 +55,8 @@ func (f *file) Read(req *fuse.ReadRequest, resp *fuse.ReadResponse, _ fs.Intr) f
 		offset, size, bpos := int64(req.Offset), int64(req.Size), int64(0)
 		if bpos = f.offsetToBufferPos(offset, size); bpos < 0 {
 			end := offset + size*10 - 1 // pre-fetch 10x the requested data, 4kB -> 40kB
-			log.Printf("file.Read(file=%s): Pre-Fetch start=%d, end=%d, size=%d)",
-				f.fullpath(), offset, end, size*10)
+			log.Printf("file.Read(file=%s path=%s): Fetching data start=%d, end=%d, size=%d",
+				f.name, f.parent.fullpath(), offset, end, size*10)
 
 			req := f.fs.NewRequest("GET", f.fullpath())
 			req.Header.Add("Range", fmt.Sprintf("bytes=%d-%d", offset, end))
@@ -81,8 +81,8 @@ func (f *file) Read(req *fuse.ReadRequest, resp *fuse.ReadResponse, _ fs.Intr) f
 			bpos = 0
 		}
 
-		log.Printf("file.Read(%s): Reading start=%d/%d end=%d",
-			f.fullpath(), offset, bpos, offset+size)
+		log.Printf("file.Read(file=%s path=%s): Reading start=%d/%d end=%d",
+			f.name, f.parent.fullpath(), offset, bpos, offset+size)
 
 		resp.Data = f.buf[bpos : bpos+size]
 		return nil

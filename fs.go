@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,9 +34,6 @@ func (fs filesystem) Root() (fs.Node, fuse.Error) {
 }
 
 func (fs filesystem) NewRequest(method, path string) *http.Request {
-	if strings.HasSuffix(path, "/") {
-		path += "/"
-	}
 	req, _ := http.NewRequest(method, fs.baseURL+path, nil)
 	if *flagHTTPAuth != "" {
 		auth := strings.Split(*flagHTTPAuth, ":")
@@ -75,7 +73,8 @@ func (n *node) fullpath() (path string) {
 		if n.parent != nil {
 			path = n.parent.fullpath()
 		}
-		path = filepath.Join(path, n.name)
+		path = filepath.Join(path, strings.Replace(
+			url.QueryEscape(n.name), "+", "%20", -1))
 	}
 	return
 }
