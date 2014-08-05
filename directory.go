@@ -20,7 +20,7 @@ type directory struct {
 	mu sync.Mutex
 }
 
-func (d directory) Attr() fuse.Attr {
+func (d *directory) Attr() fuse.Attr {
 	return fuse.Attr{
 		Mode:  os.ModeDir | 0500,
 		Uid:   MyUID,
@@ -29,8 +29,8 @@ func (d directory) Attr() fuse.Attr {
 	}
 }
 
-func NewDirectory(parent *directory, fs *filesystem, name string) directory {
-	return directory{node{parent, fs, name}, map[string]fuse.Dirent{}, sync.Mutex{}}
+func NewDirectory(parent *directory, fs *filesystem, name string) *directory {
+	return &directory{node{parent, fs, name}, map[string]fuse.Dirent{}, sync.Mutex{}}
 }
 
 func (d *directory) populate() (err fuse.Error) {
@@ -97,7 +97,7 @@ func (d *directory) populate() (err fuse.Error) {
 	return
 }
 
-func (d directory) ReadDir(_ fs.Intr) (de []fuse.Dirent, err fuse.Error) {
+func (d *directory) ReadDir(_ fs.Intr) (de []fuse.Dirent, err fuse.Error) {
 	if err = d.populate(); nil == err {
 		de = make([]fuse.Dirent, len(d.de))
 		i := 0
@@ -117,7 +117,7 @@ var ignoreNames = map[string]struct{}{
 	"._.":              struct{}{},
 }
 
-func (d directory) Lookup(name string, _ fs.Intr) (fs.Node, fuse.Error) {
+func (d *directory) Lookup(name string, _ fs.Intr) (fs.Node, fuse.Error) {
 	if _, ignore := ignoreNames[name]; !ignore && !strings.HasPrefix(name, "._") {
 		log.Printf("directory.Lookup(name=%s, path=%s)", name, d.fullpath())
 		if err := d.populate(); err != nil {
@@ -126,9 +126,9 @@ func (d directory) Lookup(name string, _ fs.Intr) (fs.Node, fuse.Error) {
 		if de, ok := d.de[name]; ok {
 			switch de.Type {
 			case fuse.DT_Dir:
-				return NewDirectory(&d, d.fs, name), nil
+				return NewDirectory(d, d.fs, name), nil
 			case fuse.DT_File:
-				return NewFile(&d, d.fs, name)
+				return NewFile(d, d.fs, name)
 			default:
 				panic("should not happen.")
 			}

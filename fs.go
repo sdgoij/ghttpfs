@@ -14,7 +14,7 @@ import (
 
 var (
 	_ fs.FS   = fs.FS(filesystem{})
-	_ fs.Node = fs.Node(directory{})
+	_ fs.Node = fs.Node(&directory{})
 	_ fs.Node = fs.Node(&file{})
 )
 
@@ -26,7 +26,7 @@ var (
 type filesystem struct {
 	baseURL string
 	client  *http.Client
-	root    directory
+	root    *directory
 }
 
 func (fs filesystem) Root() (fs.Node, fuse.Error) {
