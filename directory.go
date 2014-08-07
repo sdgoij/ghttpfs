@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
@@ -16,8 +17,13 @@ import (
 
 type directory struct {
 	node
-	de map[string]fuse.Dirent
+	de map[string]dirent
 	mu sync.Mutex
+}
+
+type dirent struct {
+	fuse.Dirent
+	mtime time.Time
 }
 
 func (d *directory) Attr() fuse.Attr {
@@ -26,11 +32,15 @@ func (d *directory) Attr() fuse.Attr {
 		Uid:   MyUID,
 		Gid:   MyGID,
 		Nlink: 1,
+		Mtime: d.mtime(),
 	}
 }
 
 func NewDirectory(parent *directory, fs *filesystem, name string) *directory {
-	return &directory{node{parent, fs, name}, map[string]fuse.Dirent{}, sync.Mutex{}}
+	return &directory{
+		node: node{parent, fs, name},
+		de:   map[string]dirent{},
+	}
 }
 
 func (d *directory) populate() (err fuse.Error) {
@@ -69,7 +79,7 @@ func (d *directory) populate() (err fuse.Error) {
 				for _, a := range n.Attr {
 					if a.Key == "href" {
 						direntType := fuse.DT_File
-						if strings.HasSuffix(a.Val, "/") {
+						if a.Val[len(a.Val)-1] == '/' {
 							direntType = fuse.DT_Dir
 						}
 						name, err := url.QueryUnescape(a.Val)
@@ -77,11 +87,14 @@ func (d *directory) populate() (err fuse.Error) {
 							log.Printf("url.QueryUnescape(%s): %s", a.Val, err)
 						}
 						name = strings.TrimRight(name, "/")
-						d.de[name] = fuse.Dirent{
-							Name: name,
-							Type: direntType,
+						d.de[name] = dirent{
+							fuse.Dirent{
+								Name: name,
+								Type: direntType,
+							},
+							ParseTime(n.NextSibling),
 						}
-						log.Println(a.Val, direntType)
+						log.Println(name, direntType)
 						break
 					}
 				}
@@ -102,7 +115,7 @@ func (d *directory) ReadDir(_ fs.Intr) (de []fuse.Dirent, err fuse.Error) {
 		de = make([]fuse.Dirent, len(d.de))
 		i := 0
 		for _, v := range d.de {
-			de[i] = v
+			de[i] = v.Dirent
 			i++
 		}
 	}
@@ -135,4 +148,20 @@ func (d *directory) Lookup(name string, _ fs.Intr) (fs.Node, fuse.Error) {
 		}
 	}
 	return nil, fuse.ENOENT
+}
+
+func ParseTime(n *html.Node) (t time.Time) {
+	if ts := prepareTimeString(n.Data); ts != "" {
+		var err error
+		t, err = time.Parse("2-Jan-2006 15:04", ts)
+		if err != nil {
+			log.Printf("ParseTime('%s'): %s", ts, err)
+		}
+	}
+	return
+}
+
+func prepareTimeString(ts string) string {
+	return strings.Trim(strings.Join(strings.SplitN(
+		strings.Trim(ts, "\t "), " ", 3)[0:2], " "), "\r\n\t ")
 }

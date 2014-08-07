@@ -47,6 +47,7 @@ func (f *file) Attr() fuse.Attr {
 		Uid:   MyUID,
 		Gid:   MyGID,
 		Nlink: 1,
+		Mtime: f.mtime(),
 	}
 }
 
@@ -81,8 +82,8 @@ func (f *file) Read(req *fuse.ReadRequest, resp *fuse.ReadResponse, _ fs.Intr) f
 			bpos = 0
 		}
 
-		log.Printf("file.Read(file=%s path=%s): Reading start=%d/%d end=%d",
-			f.name, f.parent.fullpath(), offset, bpos, offset+size)
+		// log.Printf("file.Read(file=%s path=%s): Reading start=%d/%d end=%d",
+		// 	f.name, f.parent.fullpath(), offset, bpos, offset+size)
 
 		resp.Data = f.buf[bpos : bpos+size]
 		return nil

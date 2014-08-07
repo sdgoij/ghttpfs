@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
@@ -75,6 +76,15 @@ func (n *node) fullpath() (path string) {
 		}
 		path = filepath.Join(path, strings.Replace(
 			url.QueryEscape(n.name), "+", "%20", -1))
+	}
+	return
+}
+
+func (n *node) mtime() (t time.Time) {
+	if n.parent != nil {
+		if de, ok := n.parent.de[n.name]; ok {
+			t = de.mtime
+		}
 	}
 	return
 }
