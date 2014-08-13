@@ -85,6 +85,10 @@ func (f *file) Read(req *fuse.ReadRequest, resp *fuse.ReadResponse, _ fs.Intr) f
 		// log.Printf("file.Read(file=%s path=%s): Reading start=%d/%d end=%d",
 		// 	f.name, f.parent.fullpath(), offset, bpos, offset+size)
 
+		if n := int64(len(f.buf)); size > n {
+			size = n
+		}
+
 		resp.Data = f.buf[bpos : bpos+size]
 		return nil
 	}
