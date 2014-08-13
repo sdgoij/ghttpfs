@@ -104,6 +104,9 @@ func (d *directory) populate() (err fuse.Error) {
 			}
 		}
 		walk(doc)
+		time.AfterFunc(30*time.Second, func() {
+			d.reset()
+		})
 	default:
 		panic("Unsupported directory response.")
 	}
@@ -148,6 +151,14 @@ func (d *directory) Lookup(name string, _ fs.Intr) (fs.Node, fuse.Error) {
 		}
 	}
 	return nil, fuse.ENOENT
+}
+
+func (d *directory) reset() {
+	d.mu.Lock()
+	size := len(d.de)
+	log.Printf("directory.reset(%s): %d children", d.fullpath(), size)
+	d.de = make(map[string]dirent, size)
+	d.mu.Unlock()
 }
 
 func ParseTime(n *html.Node) (t time.Time) {
