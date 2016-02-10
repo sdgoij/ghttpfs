@@ -13,6 +13,7 @@ var (
 	flagHTTPAddr = flag.String("http.addr", "http://localhost/", "HTTP(S) server address to connect to.")
 	flagHTTPAuth = flag.String("http.auth", "", "Authenticate using username:password.")
 	flagHTTPSkip = flag.Bool("http.insecure-skip-verify", true, "Controls whether a client verifies the server's certificate chain and host name.")
+	flagAcceptJSON = flag.Bool("json", false, "Add Accept application/json header for directory listing requests.")
 )
 
 func main() {
@@ -37,7 +38,7 @@ func main() {
 		conn.Close()
 	}()
 
-	if err := fs.Serve(conn, NewFS(*flagHTTPAddr, *flagHTTPSkip)); err != nil {
+	if err := fs.Serve(conn, NewFS(*flagHTTPAddr, *flagHTTPSkip, *flagAcceptJSON)); err != nil {
 		log.Fatalln(err)
 	}
 

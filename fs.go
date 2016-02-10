@@ -28,6 +28,7 @@ type filesystem struct {
 	baseURL string
 	client  *http.Client
 	root    *directory
+	json    bool
 }
 
 func (fs filesystem) Root() (fs.Node, fuse.Error) {
@@ -46,7 +47,7 @@ func (fs filesystem) NewRequest(method, path string) *http.Request {
 	return req
 }
 
-func NewFS(url string, skipVerify bool) filesystem {
+func NewFS(url string, skipVerify bool, acceptJSON bool) filesystem {
 	if !strings.HasSuffix(url, "/") {
 		url += "/"
 	}
@@ -58,6 +59,7 @@ func NewFS(url string, skipVerify bool) filesystem {
 			},
 		},
 		root: NewDirectory(nil, nil, ""),
+		json: acceptJSON,
 	}
 	fs.root.fs = &fs
 	return fs

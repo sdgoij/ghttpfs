@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -11,6 +13,8 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
+
+	"github.com/mholt/caddy/middleware/browse"
 
 	"golang.org/x/net/html"
 )
@@ -50,7 +54,9 @@ func (d *directory) populate() (err fuse.Error) {
 	if len(d.de) > 0 {
 		return nil
 	}
-	r, err := d.fs.client.Do(d.fs.NewRequest("GET", d.fullpath()+"/"))
+	req := d.fs.NewRequest("GET", d.fullpath()+"/")
+	req.Header.Set("Accept", "application/json")
+	r, err := d.fs.client.Do(req)
 	if err != nil {
 		log.Println("ERROR:", err)
 		return err
@@ -107,6 +113,29 @@ func (d *directory) populate() (err fuse.Error) {
 		time.AfterFunc(30*time.Second, func() {
 			d.reset()
 		})
+	case "application/json":
+		if r.Header.Get("Server") == "Caddy" {
+			var entries []browse.FileInfo
+			data, _ := ioutil.ReadAll(r.Body);
+
+			if err := json.Unmarshal(data, &entries); nil != err {
+				log.Printf("Error: %s", err)
+			}
+			for _, info := range entries {
+				direntType := fuse.DT_File
+				if info.IsDir {
+					direntType = fuse.DT_Dir
+				}
+				d.de[info.Name] = dirent{
+					fuse.Dirent{
+						Name: info.Name,
+						Type: direntType,
+					},
+					info.ModTime,
+				}
+				log.Println(info.Name, direntType)
+			}
+		}
 	default:
 		panic("Unsupported directory response.")
 	}
